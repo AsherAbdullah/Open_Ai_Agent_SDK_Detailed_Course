@@ -1,4 +1,4 @@
-## Sync aur Async Agents ko Samajhna
+# Sync aur Async Agents ko Samajhna
 
 ### Sync Agents
 - **Definition**: Synchronous agents tasks ko blocking manner mein execute kartay hain, yani program wait karta hai jab tak agent apna task complete na kar le.
