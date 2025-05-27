@@ -1,192 +1,231 @@
-# Lecture: Context Management in OpenAI Agents SDK (Roman English)
+# Lecture: Understanding Context Management in the OpenAI Agents SDK
 
 ## Introduction
+The OpenAI Agents SDK is a lightweight, powerful framework designed to build multi-agent AI workflows. One of its key features is **context management**, which allows developers to pass and manage data across agents, tools, and lifecycle hooks during an agent’s execution. This lecture dives into the concept of context management, its importance, how it works, and practical examples of implementing it using Python.
 
-OpenAI Agents SDK ek powerful framework hai jo developers ko agentic AI applications banane ki ijazat deta hai. Yeh agents large language models (LLMs) ke sath mil kar kaam karte hain aur tools, handoffs, aur guardrails ke zariye complex workflows ko handle karte hain. Lekin in sab ke markaz mein ek ahem tasawwur hai: **Context Management**.
+By the end of this lecture, you will:
+- Understand what context means in the OpenAI Agents SDK.
+- Learn how to define and pass context objects to agents and tools.
+- Explore practical code examples demonstrating context management.
+- Understand best practices and limitations of context management.
 
-**Context Management** se murad woh amal hai jis ke zariye agents apne workflow ke dauraan maloomat ko barqarar rakhte hain aur share karte hain. Yeh agents ke darmiyan data aur state ko manage karne ke liye istemaal hota hai taake woh zyada intelligent aur relevant faislay kar saken. Is lecture mein hum dekhenge ke OpenAI Agents SDK mein context management kaise kaam karta hai, is ki ahmiyat kya hai, aur isay code ke sath kaise naafiz kiya jata hai.
-
----
-
-## Context Management Kya Hai? (What is Context Management?)
-
-Context Management ek agent ke workflow ke dauraan istemaal hone wali maloomat ka intezam karne ka amal hai. Yeh maloomat agents ke darmiyan share ki ja sakti hai, jaise ke user ka input, pichhli guftagu, ya koi khaas data jo agent ke faislon ke liye zaroori ho. OpenAI Agents SDK mein, context ko **RunContextWrapper** class ke zariye handle kiya jata hai, jo agent ke run ke dauraan data ko manage karti hai.
-
-**Ahem Nuktaat**:
-- **Context** ek data structure hai jo agent ke run ke dauraan istemaal hone wali maloomat ko store karta hai.
-- Yeh agents, tools, aur handoffs ke darmiyan data ke bahao ko yaqeeni banata hai.
-- Context ko customize kiya ja sakta hai taake application ki makhsoos zarooriyaat ko poora kiya ja sake.
-
-Misal ke taur par, agar aap ek aisi application bana rahe hain jo user ke pichhle sawalat ya jawabat ko yaad rakhe aur un ke mutabiq jawab de, to context management is kaam ko asaan karta hai.
+This lecture is based on the official documentation from the OpenAI Agents SDK, specifically the context management section.
 
 ---
 
-## Context Management Ki Ahmiyat (Importance of Context Management)
+## What is Context in the OpenAI Agents SDK?
 
-Context Management OpenAI Agents SDK mein is liye zaroori hai kyun ke:
+In the OpenAI Agents SDK, **context** refers to a user-defined Python object that is passed to the `Runner.run` method and made available to agents, tools, lifecycle hooks, and other components during an agent’s execution. It serves as a mechanism for **dependency injection** and **state management**, allowing you to share data such as user information, configuration settings, or dependencies (e.g., loggers, data fetchers) across your application.
 
-1. **State Persistence**: Yeh agents ko apne state (halat) ko barqarar rakhne ki ijazat deta hai, taake woh pichhle interactions ko yaad rakh saken.
-2. **Data Sharing**: Multiple agents ya tools ke darmiyan data ko share karne ka ek standardized tariqa faraham karta hai.
-3. **Workflow Efficiency**: Context ke zariye workflows ko zyada streamlined aur efficient banaya ja sakta hai.
-4. **User Experience**: User ke liye personalized aur relevant responses generate karne mein madad karta hai.
+### Key Points About Context
+1. **Not Sent to the LLM**: Context is a local object used within your code. It is not passed to the underlying large language model (LLM). Instead, it’s accessible to your tools, hooks, and callbacks.
+2. **Flexible Data Structure**: You can use any Python object as a context, such as a dictionary, dataclass, or Pydantic model.
+3. **Type Consistency**: All components (agents, tools, hooks) in a single agent run must use the same context type to ensure type safety and consistency.
+4. **Purpose**: Context is used to:
+   - Store user-specific data (e.g., username, user ID).
+   - Manage dependencies (e.g., database connections, loggers).
+   - Pass runtime information to tools and lifecycle hooks.
 
-Bina context management ke, agents har interaction ko naye siray se shuru karenge, jo ke user experience ko kharab kar sakta hai.
+### Context vs. LLM Conversation History
+The LLM only sees data from the **conversation history** (i.e., messages passed to it). If you want the LLM to access specific information, you must include it in:
+- **Agent instructions** (system prompt).
+- **Input messages** passed to `Runner.run`.
 
----
-
-## OpenAI Agents SDK Mein Context Kaise Kaam Karta Hai?
-
-OpenAI Agents SDK mein context ko **RunContextWrapper** class ke zariye manage kiya jata hai. Yeh class ek run ke dauraan tamam zaroori maloomat ko encapsulate karti hai, jaise ke:
-
-- **User Input**: User ka diya hua input ya query.
-- **Session Data**: Pichhle interactions ka data, jaise ke conversation history.
-- **Agent State**: Agent ka current state ya configuration.
-- **Tool Outputs**: Tools ke outputs jo workflow ke dauraan generate hue.
-
-Yeh class ek flexible aur extensible tariqe se context ko store aur retrieve karne ki ijazat deti hai.
-
-### Context Management Ke Components
-1. **RunContextWrapper**: Yeh core class hai jo context ko manage karti hai.
-2. **Context Store**: Ek dictionary ya object jo key-value pairs mein data store karta hai.
-3. **Handoffs**: Jab ek agent doosre agent ko control deta hai, context bhi transfer hota hai.
-4. **Guardrails**: Context ke zariye guardrails ko enforce kiya ja sakta hai taake agent specific boundaries ke andar kaam kare.
+Context, on the other hand, is for **your code’s use**, not the LLM’s. For example, you might store a user’s ID in the context to fetch data from a database in a tool, but the LLM doesn’t see this ID unless you explicitly include it in the conversation history.
 
 ---
 
-## Code Example: Context Management in Action
+## How Context Management Works
 
-Ab hum ek practical code example dekhenge jo dikhata hai ke OpenAI Agents SDK mein context management kaise implement kiya jata hai. Is example mein, hum ek simple chatbot banayenge jo user ke pichhle inputs ko yaad rakhta hai aur un ke mutabiq jawab deta hai.
+Context is managed through the `RunContextWrapper` class, which wraps the context object you provide when calling `Runner.run`. This wrapper is passed to tools, lifecycle hooks, and other components, allowing them to access the context data.
 
-### Prerequisites
-- OpenAI Agents SDK installed hona chahiye (`pip install openai-agents-sdk`).
-- OpenAI API key set karni hogi environment variable mein (`OPENAI_API_KEY`).
+### Key Components
+1. **RunContextWrapper[T]**: A generic wrapper that holds your context object of type `T`. You access the context via `wrapper.context`.
+2. **Runner.run**: The method where you pass the context object using the `context` parameter.
+3. **Type Safety**: The SDK uses Python’s type hints to ensure that all components in a run use the same context type.
 
-### Code
+### Workflow
+1. You define a context object (e.g., a dataclass or Pydantic model).
+2. You pass this object to `Runner.run` or related methods.
+3. Tools, hooks, and other components receive a `RunContextWrapper[T]` instance, from which they can access the context.
+4. The context can be read, modified, or used to call methods during the agent’s execution.
 
-<xaiArtifact artifact_id="597a7666-027e-4e64-8155-569bdc53fdc3" artifact_version_id="c2987134-4e4d-4bcd-b006-4c34bc0605f7" title="context_management_chatbot.py" contentType="text/python">
-import os
-from openai_agents_sdk import RunContextWrapper, Agent
+---
 
-# API Key Setup
-os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+## Practical Example: Using Context to Manage User Information
 
-# Initialize Agent
-agent = Agent(model="gpt-4", api_key=os.environ["OPENAI_API_KEY"])
+Let’s walk through a practical example to demonstrate context management. In this example, we’ll create an agent that uses a context object to store user information (name and user ID) and a tool that fetches the user’s age based on the context.
 
-# Function to handle user interaction with context
-def chatbot_with_context(user_input, context_wrapper=None):
-    if context_wrapper is None:
-        # Create a new context if none exists
-        context_wrapper = RunContextWrapper()
+### Step 1: Define the Context Object
+We’ll use a Python `dataclass` to define a `UserInfo` context object that stores a user’s name and ID.
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class UserInfo:
+    name: str
+    uid: int
+```
+
+### Step 2: Create a Tool That Uses the Context
+We’ll define a tool called `fetch_user_age` that uses the context to retrieve the user’s age. In a real application, this might query a database, but for simplicity, we’ll return a hardcoded value.
+
+```python
+from agents import RunContextWrapper, function_tool
+
+@function_tool
+async def fetch_user_age(wrapper: RunContextWrapper[UserInfo]) -> str:
+    # Access the context to get user information
+    user_name = wrapper.context.name
+    return f"User {user_name} is 47 years old"
+```
+
+- The `@function_tool` decorator turns the Python function into a tool that the agent can call.
+- The tool receives a `RunContextWrapper[UserInfo]`, from which it accesses the `UserInfo` context via `wrapper.context`.
+
+### Step 3: Create an Agent
+We’ll create an agent that uses the `fetch_user_age` tool and is typed to work with the `UserInfo` context.
+
+```python
+from agents import Agent
+
+agent = Agent[UserInfo](
+    name="Assistant",
+    instructions="You are a helpful assistant that can fetch user information.",
+    tools=[fetch_user_age],
+)
+```
+
+- The `[UserInfo]` specifies that this agent expects a `UserInfo` context object.
+- The `tools` parameter includes our `fetch_user_age` tool.
+
+### Step 4: Run the Agent with Context
+We’ll use the `Runner.run` method to execute the agent, passing a `UserInfo` context object.
+
+```python
+from agents import Runner
+import asyncio
+
+async def main():
+    # Create a context object
+    user_info = UserInfo(name="John", uid=123)
     
-    # Add user input to context
-    context_wrapper.add_to_context("user_input", user_input)
-    
-    # Retrieve previous conversation history (if any)
-    conversation_history = context_wrapper.get_from_context("conversation_history", default=[])
-    
-    # Append current input to history
-    conversation_history.append({"role": "user", "content": user_input})
-    
-    # Generate response using agent
-    response = agent.generate_response(
-        prompt=f"Answer the user based on this history: {conversation_history}",
-        context=context_wrapper
+    # Run the agent with the context
+    result = await Runner.run(
+        starting_agent=agent,
+        input="What is the age of the user?",
+        context=user_info,
     )
     
-    # Append agent response to history
-    conversation_history.append({"role": "assistant", "content": response})
-    
-    # Update context with new conversation history
-    context_wrapper.update_context("conversation_history", conversation_history)
-    
-    return response, context_wrapper
+    # Print the result
+    print(result.final_output)
 
-# Example Usage
-def main():
-    context = None  # Initialize context as None
-    print("Chatbot started. Type 'exit' to quit.")
-    
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            break
-        
-        response, context = chatbot_with_context(user_input, context)
-        print(f"Bot: {response}")
-    
-    # Save context for future use (optional)
-    context.save_to_file("chat_context.json")
-
+# Run the async main function
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+```
 
-#Code Examples For Better Explanations:
-import os
-from openai_agents_sdk import RunContextWrapper, Agent
-import requests  # For weather API (example)
+### Expected Output
+```
+The user John is 47 years old.
+```
 
-# API Key Setup
-os.environ["OPENAI_API_KEY"] = "your-api-key-here"
-WEATHER_API_KEY = "your-weather-api-key-here"
+### Explanation of the Code
+1. **Context Object**: The `UserInfo` dataclass stores the user’s name (`John`) and ID (`123`).
+2. **Tool**: The `fetch_user_age` tool accesses the user’s name from the context and returns a string with the user’s age.
+3. **Agent**: The agent is configured with the tool and expects a `UserInfo` context.
+4. **Runner**: The `Runner.run` method passes the `user_info` context to the agent and tool, and the tool uses it to generate the response.
 
-# Weather Tool
-def get_weather(city):
-    url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={city}"
-    response = requests.get(url)
-    return response.json()
+---
 
-# Agent with Weather Tool and Context
-def weather_agent(user_input, context_wrapper=None):
-    if context_wrapper is None:
-        context_wrapper = RunContextWrapper()
+## Advanced Example: Dynamic Instructions with Context
+
+In this example, we’ll use a dynamic instruction function that generates the agent’s system prompt based on the context. This is useful when you want the LLM to have access to context data (e.g., the user’s name) in its instructions.
+
+### Step 1: Define the Context and Dynamic Instructions
+We’ll reuse the `UserInfo` dataclass and create a function to generate dynamic instructions.
+
+```python
+from dataclasses import dataclass
+from agents import Agent, RunContextWrapper
+
+@dataclass
+class UserInfo:
+    name: str
+    uid: int
+
+def dynamic_instructions(context: RunContextWrapper[UserInfo], agent: Agent[UserInfo]) -> str:
+    return f"You are a helpful assistant for {context.context.name}. Answer their questions politely."
+```
+
+### Step 2: Create the Agent with Dynamic Instructions
+We’ll create an agent that uses the dynamic instructions and a simple tool.
+
+```python
+@function_tool
+async def greet_user(wrapper: RunContextWrapper[UserInfo]) -> str:
+    return f"Hello, {wrapper.context.name}! How can I assist you today?"
+
+agent = Agent[UserInfo](
+    name="Assistant",
+    instructions=dynamic_instructions,
+    tools=[greet_user],
+)
+```
+
+### Step 3: Run the Agent
+We’ll run the agent with a context object and a user input.
+
+```python
+async def main():
+    user_info = UserInfo(name="Alice", uid=456)
     
-    # Add user input to context
-    context_wrapper.add_to_context("user_input", user_input)
-    
-    # Check if user is asking for weather
-    if "weather" in user_input.lower():
-        city = user_input.split("weather in")[-1].strip()
-        weather_data = get_weather(city)
-        
-        # Store weather data in context
-        context_wrapper.add_to_context("weather_data", weather_data)
-        
-        # Initialize agent
-        agent = Agent(model="gpt-4", api_key=os.environ["OPENAI_API_KEY"])
-        
-        # Generate response using weather data
-        response = agent.generate_response(
-            prompt=f"User asked for weather in {city}. Weather data: {weather_data}",
-            context=context_wrapper
-        )
-        
-        return response, context_wrapper
-    
-    # Default response if no weather query
-    agent = Agent(model="gpt-4", api_key=os.environ["OPENAI_API_KEY"])
-    response = agent.generate_response(
-        prompt=f"Answer the user: {user_input}",
-        context=context_wrapper
+    result = await Runner.run(
+        starting_agent=agent,
+        input="Say hello to me.",
+        context=user_info,
     )
     
-    return response, context_wrapper
-
-# Example Usage
-def main():
-    context = None
-    print("Weather Bot started. Type 'exit' to quit.")
-    
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            break
-        
-        response, context = weather_agent(user_input, context)
-        print(f"Bot: {response}")
-    
-    # Save context for future use
-    context.save_to_file("weather_context.json")
+    print(result.final_output)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
+```
+
+### Expected Output
+```
+Hello, Alice! How can I assist you today?
+```
+
+### Explanation
+- **Dynamic Instructions**: The `dynamic_instructions` function uses the context to include the user’s name in the system prompt, making the LLM’s responses personalized.
+- **Tool**: The `greet_user` tool also accesses the context to generate a personalized greeting.
+- **Context Passing**: The `user_info` context is passed to both the instructions and the tool, ensuring consistent access to user data.
+
+---
+
+## Best Practices for Context Management
+
+1. **Use Type Annotations**: Always specify the context type (e.g., `Agent[UserInfo]`) to leverage type checking and prevent errors.
+2. **Keep Context Lightweight**: Avoid storing large or complex objects in the context unless necessary, as it’s passed to all components.
+3. **Use Pydantic or Dataclasses**: These provide structured, type-safe ways to define context objects.
+4. **Separate Context from LLM Data**: Remember that context is for your code, not the LLM. Use agent instructions or input messages to pass data to the LLM.
+5. **Handle Sensitive Data Carefully**: Since context is used locally, ensure sensitive data (e.g., user IDs) is handled securely and not accidentally exposed in logs or outputs.
+
+---
+
+## Limitations and Considerations
+
+1. **Type Consistency**: All components in a single agent run must use the same context type. Mixing types will result in type errors.
+2. **Not Sent to LLM**: If you need the LLM to access context data, you must explicitly include it in instructions or input messages.
+3. **Performance**: If your context involves heavy computations (e.g., fetching data from a database), ensure these are optimized to avoid slowing down the agent’s execution.
+4. **Tracing**: Context data may appear in traces if you’re using the SDK’s tracing feature. Disable sensitive data capture if needed (see the tracing documentation).
+
+---
+
+## Conclusion
+
+Context management in the OpenAI Agents SDK is a powerful feature that enables flexible, type-safe data sharing across agents, tools, and lifecycle hooks. By using context objects, you can manage user-specific data, dependencies, and state without cluttering the LLM’s conversation history. The examples provided demonstrate how to define context objects, use them in tools, and incorporate them into dynamic instructions.
+
+To explore more, refer to the official OpenAI Agents SDK documentation at https://openai.github.io/openai-agents-python/. Experiment with different context types (e.g., Pydantic models, dictionaries) and explore advanced features like guardrails, handoffs, and tracing to build robust AI applications.
