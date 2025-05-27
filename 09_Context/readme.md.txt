@@ -120,3 +120,73 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#Code Examples For Better Explanations:
+import os
+from openai_agents_sdk import RunContextWrapper, Agent
+import requests  # For weather API (example)
+
+# API Key Setup
+os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+WEATHER_API_KEY = "your-weather-api-key-here"
+
+# Weather Tool
+def get_weather(city):
+    url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={city}"
+    response = requests.get(url)
+    return response.json()
+
+# Agent with Weather Tool and Context
+def weather_agent(user_input, context_wrapper=None):
+    if context_wrapper is None:
+        context_wrapper = RunContextWrapper()
+    
+    # Add user input to context
+    context_wrapper.add_to_context("user_input", user_input)
+    
+    # Check if user is asking for weather
+    if "weather" in user_input.lower():
+        city = user_input.split("weather in")[-1].strip()
+        weather_data = get_weather(city)
+        
+        # Store weather data in context
+        context_wrapper.add_to_context("weather_data", weather_data)
+        
+        # Initialize agent
+        agent = Agent(model="gpt-4", api_key=os.environ["OPENAI_API_KEY"])
+        
+        # Generate response using weather data
+        response = agent.generate_response(
+            prompt=f"User asked for weather in {city}. Weather data: {weather_data}",
+            context=context_wrapper
+        )
+        
+        return response, context_wrapper
+    
+    # Default response if no weather query
+    agent = Agent(model="gpt-4", api_key=os.environ["OPENAI_API_KEY"])
+    response = agent.generate_response(
+        prompt=f"Answer the user: {user_input}",
+        context=context_wrapper
+    )
+    
+    return response, context_wrapper
+
+# Example Usage
+def main():
+    context = None
+    print("Weather Bot started. Type 'exit' to quit.")
+    
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == "exit":
+            break
+        
+        response, context = weather_agent(user_input, context)
+        print(f"Bot: {response}")
+    
+    # Save context for future use
+    context.save_to_file("weather_context.json")
+
+if __name__ == "__main__":
+    main()
